@@ -1,52 +1,40 @@
-// script.js
-document.addEventListener('DOMContentLoaded', () => {
-    // 葉っぱのインタラクティブアニメーション
-    const leaves = document.querySelectorAll('.leaf');
-    
-    leaves.forEach(leaf => {
-        leaf.addEventListener('mouseenter', () => {
-            gsap.to(leaf, {
-                scale: 1.2,
-                rotation: () => gsap.utils.random(-15, 15),
-                duration: 0.5
-            });
-        });
-        
-        leaf.addEventListener('mouseleave', () => {
-            gsap.to(leaf, {
-                scale: 1,
-                rotation: 0,
-                duration: 0.3
-            });
-        });
+// server.js
+require('dotenv').config();
+const express = require('express');
+const app = express();
+
+// 静的ファイルの配信
+app.use(express.static('public'));
+
+// 環境変数から認証情報を取得
+const ADOBE_CLIENT_ID = process.env.ADOBE_CLIENT_ID;
+const ADOBE_CLIENT_SECRET = process.env.ADOBE_CLIENT_SECRET;
+
+// Adobe認証エンドポイント
+app.get('/api/auth', async (req, res) => {
+  try {
+    const authData = new URLSearchParams();
+    authData.append('client_id', ADOBE_CLIENT_ID);
+    authData.append('client_secret', ADOBE_CLIENT_SECRET);
+    authData.append('grant_type', 'client_credentials');
+
+    const response = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: authData
     });
 
-    // スクロール連動アニメーション
-    gsap.utils.toArray('.leaf').forEach(leaf => {
-        gsap.from(leaf, {
-            scrollTrigger: {
-                trigger: leaf,
-                start: 'top center',
-                toggleActions: 'play none none reverse'
-            },
-            opacity: 0,
-            y: 100,
-            duration: 1
-        });
-    });
+    const data = await response.json();
+    res.json({ accessToken: data.access_token });
+  } catch (error) {
+    res.status(500).json({ error: '認証に失敗しました' });
+  }
+});
 
-    // ランダムな葉っぱの動き
-    setInterval(() => {
-        leaves.forEach(leaf => {
-            if(Math.random() > 0.8) {
-                gsap.to(leaf, {
-                    x: `+=${gsap.utils.random(-50,50)}`,
-                    y: `+=${gsap.utils.random(-30,30)}`,
-                    rotation: `+=${gsap.utils.random(-45,45)}`,
-                    duration: 3,
-                    ease: 'power2.inOut'
-                });
-            }
-        });
-    }, 3000);
+// サーバー起動
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
