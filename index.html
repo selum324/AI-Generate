@@ -2,248 +2,180 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>AI画像自動作成ツール</title>
+    <title>Adobe AI画像生成ツール</title>
     <style>
-        /* 基本スタイル */
+        :root {
+            --primary-color: #FF3366;
+            --secondary-color: #2A2A2A;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f0f2f5;
+            padding: 2rem;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         }
 
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        .dashboard {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 1.5rem;
+            padding: 2.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
         }
 
-        /* 入力エリアのスタイル */
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: bold;
-        }
-
-        input[type="text"], select {
+        .ai-prompt-editor {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
+            height: 150px;
+            padding: 1.5rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
         }
 
-        /* ボタンスタイル */
-        .button {
-            background: #4CAF50;
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
+        .style-presets {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .preset-card {
+            border: 2px solid transparent;
+            border-radius: 12px;
+            padding: 1rem;
             cursor: pointer;
-            font-size: 16px;
-            transition: background 0.3s;
+            transition: all 0.2s ease;
         }
 
-        .button:hover {
-            background: #45a049;
-        }
-
-        /* プレビューエリア */
-        #previewArea {
-            margin-top: 30px;
-            text-align: center;
-            border: 2px dashed #ddd;
-            padding: 20px;
-            border-radius: 10px;
-            min-height: 400px;
-        }
-
-        /* 生成画像のスタイル */
-        .generated-image {
-            max-width: 100%;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        /* レスポンシブ対応 */
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-            
-            input[type="text"], select {
-                font-size: 14px;
-            }
+        #previewContainer {
+            position: relative;
+            min-height: 600px;
+            background: #fff;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>画像自動作成ツール</h1>
+    <div class="dashboard">
+        <h1>Adobe AI 画像生成ツール</h1>
         
         <div class="input-group">
-            <label for="textInput">画像に表示するテキスト:</label>
-            <input type="text" id="textInput" placeholder="ここにテキストを入力">
+            <textarea 
+                id="aiPrompt" 
+                class="ai-prompt-editor"
+                placeholder="例: 夕暮れの海辺で戯れる子犬のリアルな写真..."></textarea>
         </div>
 
-        <div class="input-group">
-            <label for="styleSelect">スタイル選択:</label>
-            <select id="styleSelect">
-                <option value="minimal">ミニマル</option>
-                <option value="vintage">ビンテージ</option>
-                <option value="modern">モダン</option>
-                <option value="nature">自然</option>
-            </select>
-        </div>
+        <button id="generateBtn" class="generate-button">画像生成</button>
 
-        <div class="input-group">
-            <label>背景色: <input type="color" id="bgColor" value="#ffffff"></label>
-            <label>文字色: <input type="color" id="textColor" value="#000000"></label>
-            <label>フォントサイズ: <input type="range" id="fontSize" min="16" max="72" value="32"></label>
-        </div>
-
-        <button class="button" onclick="generateImage()">画像生成</button>
-        <button class="button" onclick="downloadImage()" id="downloadBtn" style="display:none;">画像ダウンロード</button>
-
-        <div id="previewArea">
-            <canvas id="imageCanvas" style="display:none;"></canvas>
-            <p id="previewText">ここにプレビューが表示されます</p>
+        <div id="previewContainer">
+            <img id="generatedImage" class="generated-image">
         </div>
     </div>
 
     <script>
-        const canvas = document.getElementById('imageCanvas');
-        const ctx = canvas.getContext('2d');
-        let generatedImageUrl = null;
+        const ADOBE_API = {
+            auth: 'https://ims-na1.adobelogin.com/ims/token/v3',
+            generate: 'https://image.adobe.io/lrService/generateImage'
+        };
 
-        // 画像生成関数
-        function generateImage() {
-            const text = document.getElementById('textInput').value;
-            const style = document.getElementById('styleSelect').value;
-            const bgColor = document.getElementById('bgColor').value;
-            const textColor = document.getElementById('textColor').value;
-            const fontSize = parseInt(document.getElementById('fontSize').value);
+        async function authenticateAdobe() {
+            const authData = new URLSearchParams();
+            authData.append('client_id', 'Y50RJM66FX');
+            authData.append('client_secret', 'ea4e93fcad4f2957c826bdf96fffe51c3a42179c');
+            authData.append('grant_type', 'client_credentials');
 
-            if (!text) {
-                alert('テキストを入力してください');
-                return;
+            try {
+                const response = await fetch(ADOBE_API.auth, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: authData
+                });
+
+                const data = await response.json();
+                return data.access_token;
+            } catch (error) {
+                console.error('認証エラー:', error);
+                alert('API認証に失敗しました');
             }
-
-            // キャンバスサイズ設定
-            canvas.width = 800;
-            canvas.height = 600;
-            
-            // 背景描画
-            ctx.fillStyle = bgColor;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // スタイル適用
-            applyStyle(style);
-
-            // テキスト描画
-            ctx.fillStyle = textColor;
-            ctx.font = `${fontSize}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            // テキスト折り返し処理
-            wrapText(text, canvas.width/2, canvas.height/2, canvas.width - 40, fontSize);
-
-            // プレビュー表示
-            generatedImageUrl = canvas.toDataURL('image/png');
-            document.getElementById('previewText').innerHTML = 
-                `<img src="${generatedImageUrl}" class="generated-image" alt="生成画像">`;
-            document.getElementById('downloadBtn').style.display = 'inline-block';
         }
 
-        // テキスト折り返し関数
-        function wrapText(text, x, y, maxWidth, fontSize) {
-            const words = text.split(' ');
-            let line = '';
-            let lineHeight = fontSize * 1.2;
-            let currentY = y - (words.length * lineHeight)/2;
+        async function generateImage() {
+            const prompt = document.getElementById('aiPrompt').value;
+            const accessToken = await authenticateAdobe();
 
-            for(let n = 0; n < words.length; n++) {
-                const testLine = line + words[n] + ' ';
-                const metrics = ctx.measureText(testLine);
-                const testWidth = metrics.width;
-                
-                if (testWidth > maxWidth && n > 0) {
-                    ctx.fillText(line, x, currentY);
-                    line = words[n] + ' ';
-                    currentY += lineHeight;
-                } else {
-                    line = testLine;
+            try {
+                const response = await fetch(ADOBE_API.generate, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        width: 1024,
+                        height: 1024,
+                        quality: 95
+                    })
+                });
+
+                const result = await response.json();
+                if (result.outputs?.[0]?.image) {
+                    document.getElementById('generatedImage').src = result.outputs[0].image;
                 }
-            }
-            ctx.fillText(line, x, currentY);
-        }
-
-        // スタイル適用関数
-        function applyStyle(style) {
-            switch(style) {
-                case 'minimal':
-                    ctx.strokeStyle = '#333';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(20, 20, canvas.width-40, canvas.height-40);
-                    break;
-                    
-                case 'vintage':
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.strokeStyle = '#8B4513';
-                    ctx.lineWidth = 4;
-                    ctx.setLineDash([10, 5]);
-                    ctx.strokeRect(30, 30, canvas.width-60, canvas.height-60);
-                    break;
-                    
-                case 'modern':
-                    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-                    gradient.addColorStop(0, '#00ffff');
-                    gradient.addColorStop(1, '#ff00ff');
-                    ctx.strokeStyle = gradient;
-                    ctx.lineWidth = 4;
-                    ctx.strokeRect(40, 40, canvas.width-80, canvas.height-80);
-                    break;
-                    
-                case 'nature':
-                    ctx.beginPath();
-                    ctx.arc(canvas.width/2, canvas.height/2, 250, 0, Math.PI * 2);
-                    ctx.clip();
-                    break;
+            } catch (error) {
+                console.error('生成エラー:', error);
+                alert('画像生成に失敗しました');
             }
         }
 
-        // 画像ダウンロード関数
-        function downloadImage() {
-            if (!generatedImageUrl) return;
-            
-            const link = document.createElement('a');
-            link.download = 'generated-image.png';
-            link.href = generatedImageUrl;
-            link.click();
-        }
+        document.getElementById('generateBtn').addEventListener('click', generateImage);
 
-        // 入力値のリアルタイムプレビュー
-        document.getElementById('textInput').addEventListener('input', function() {
-            document.getElementById('previewText').textContent = this.value || 'ここにプレビューが表示されます';
-        });
+// 変更前（直接API呼び出し）
+async function authenticateAdobe() {
+  // クライアントサイドでシークレットを保持しない
+}
 
-        document.getElementById('fontSize').addEventListener('input', function() {
-            document.getElementById('previewText').style.fontSize = `${this.value}px`;
-        });
+// 変更後（サーバー経由）
+async function generateImage() {
+  try {
+    // サーバーからアクセストークンを取得
+    const authRes = await fetch('/api/auth');
+    const { accessToken } = await authRes.json();
 
-        document.getElementById('textColor').addEventListener('input', function() {
-            document.getElementById('previewText').style.color = this.value;
-        });
+    // 画像生成処理
+    const response = await fetch('https://image.adobe.io/lrService/generateImage', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt: document.getElementById('aiPrompt').value,
+        width: 1024,
+        height: 1024
+      })
+    });
+
+    // 結果処理
+    const result = await response.json();
+    if (result.outputs?.[0]?.image) {
+      document.getElementById('generatedImage').src = result.outputs[0].image;
+    }
+  } catch (error) {
+    console.error('エラー:', error);
+  }
+}
+
     </script>
+
+
 </body>
 </html>
