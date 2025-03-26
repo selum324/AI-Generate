@@ -1,0 +1,13 @@
+{
+  "name": "adobe-image-generator",
+  "version": "1.0.0",
+  "description": "Adobe APIを使用した画像生成アプリ",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0"
+  }
+}
